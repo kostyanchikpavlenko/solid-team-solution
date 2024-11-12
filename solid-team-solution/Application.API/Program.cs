@@ -16,6 +16,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+///Test endpoint
 app.MapGet("/healthz", () => Results.Json(new { status = "OK" }, statusCode: 200));
 
 app.Run();
