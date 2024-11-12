@@ -19,7 +19,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 ///Test endpoint
-app.MapGet("/status", (HttpResponse response) =>
+app.MapGet("/healthz", (HttpResponse response) =>
 {
     response.ContentType = "application/json";
     return JsonSerializer.Serialize(new { status = "OK" });
