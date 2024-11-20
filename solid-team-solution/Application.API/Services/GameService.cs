@@ -15,13 +15,7 @@ public class GameService : IGameService
         
         if (IsAsteroidAhead(field, myX, myY, myDirection))
         {
-            var alternativeDirection = GetAlternativeDirection(field, myX, myY, myDirection);
-            if (alternativeDirection != myDirection)
-            {
-                return "R"; // Поворот
-            }
-
-            return "M"; // Делаем шаг
+            return "R"; // Поворот
         }
         
         var enemy = FindNearestEntity(field, myX, myY, "E");
