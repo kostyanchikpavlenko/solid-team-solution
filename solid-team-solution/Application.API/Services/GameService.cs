@@ -4,190 +4,117 @@ namespace Application.API.Services;
 
 public class GameService : IGameService
 {
-    private static readonly int FieldSize = 13;
+    private const string Empty = "_";
+    private const string Asteroid = "A";
+    private const string Coin = "C";
+    private const string Player = "P";
+    private const string Enemy = "E";
 
+    // Размер поля
+    private const int FieldSize = 13;
+
+    // Направления движения
+    private static readonly (int, int)[] Directions = 
+    {
+        (0, 1),   // Вправо
+        (1, 0),   // Вниз
+        (0, -1),  // Влево
+        (-1, 0)   // Вверх
+    };
+
+    // Метод для получения следующего хода
     public string GetNextMove(string[][] field, int narrowingIn)
     {
-        // Найти корабль игрока
-        var (myX, myY, myDirection) = FindMyShip(field);
+        // Поиск текущего положения игрока
+        (int row, int col, string direction) = FindPlayerPosition(field);
 
-        if (myX == -1 || myY == -1) 
-            throw new Exception("Ship was not found"); // Ошибка, корабль не найден
-
-        // 1. Проверяем, есть ли астероид перед кораблем
-        if (IsAsteroidAhead(field, myX, myY, myDirection))
+        // Преобразуем строку направления в индекс направления
+        int dirIndex = GetDirectionIndex(direction);
+        
+        // Проверяем, если narrowingIn меньше 5, создаем буфер от края
+        if (narrowingIn < 5)
         {
-            // Ищем безопасное направление
-            var safeDirection = FindSafeDirection(field, myX, myY, myDirection);
-            if (safeDirection != myDirection)
+            if (IsAtEdge(row, col, narrowingIn))
             {
-                return "R"; // Поворачиваем вправо, чтобы избежать столкновения
-            }
-
-            return "M"; // Если безопасное направление впереди, продолжаем движение
-        }
-
-        // 2. Стреляем, если враг в зоне досягаемости
-        var enemy = FindNearestEntity(field, myX, myY, "E");
-        if (enemy != null && IsEnemyInFireRange(field, myX, myY, myDirection, enemy.Value.x, enemy.Value.y))
-        {
-            return "F"; // Стреляем
-        }
-
-        // // 3. Двигаемся к ближайшей монете
-        // var coin = FindNearestEntity(field, myX, myY, "C");
-        // if (coin != null)
-        // {
-        //     return GetMoveTowards(myX, myY, myDirection, coin.Value.x, coin.Value.y);
-        // }
-
-        // 4. Движение вперед, если путь безопасен
-        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
-        if (IsSafeCell(field, nextX, nextY, narrowingIn) && narrowingIn < 5)
-        {
-            return "M"; // Двигаемся вперед
-        }
-
-        // 5. Если не можем двигаться вперед, поворачиваем
-        return "F"; 
-    }
-
-    private bool IsAsteroidAhead(string[][] field, int myX, int myY, char myDirection)
-    {
-        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
-        return IsWithinBounds(nextX, nextY) && field[nextY][nextX] == "A";
-    }
-
-    private char FindSafeDirection(string[][] field, int myX, int myY, char myDirection)
-    {
-        var directions = new[] { 'N', 'E', 'S', 'W' };
-
-        foreach (var direction in directions)
-        {
-            if (direction == myDirection) continue; // Пропускаем текущее направление
-
-            var (nextX, nextY) = GetNextCell(myX, myY, direction);
-            if (IsWithinBounds(nextX, nextY) && IsSafeCell(field, nextX, nextY, 0))
-            {
-                return direction; // Возвращаем первое безопасное направление
+                return MovePerimeter(field, row, col, dirIndex);
             }
         }
 
-        return myDirection; // Если безопасного направления нет, возвращаем текущее
+        // Проверяем, есть ли враг в пределах 4 клеток по оси
+        if (IsAsteroidOrEnemyNearby(field, row, col, dirIndex))
+        {
+            return "F"; // Осуществляем выстрел
+        }
+
+        // Продолжаем движение вдоль периметра
+        return MovePerimeter(field, row, col, dirIndex);
     }
 
-    private (int x, int y, char direction) FindMyShip(string[][] field)
+    // Поиск позиции игрока
+    private (int, int, string) FindPlayerPosition(string[][] field)
     {
-        for (int y = 0; y < FieldSize; y++)
+        for (int row = 0; row < field.Length; row++)
         {
-            for (int x = 0; x < FieldSize; x++)
+            for (int col = 0; col < field[row].Length; col++)
             {
-                if (field[y][x].StartsWith("P"))
+                if (field[row][col].StartsWith(Player))
                 {
-                    return (x, y, field[y][x][1]);
+                    return (row, col, field[row][col].Substring(1)); // Возвращаем координаты и направление
                 }
             }
         }
-
-        return (-1, -1, '_'); // Корабль не найден
+        throw new Exception("Player not found");
     }
 
-    private (int x, int y)? FindNearestEntity(string[][] field, int startX, int startY, string entityType)
+    // Проверка на астероиды или врагов в пределах 4 клеток по оси
+    private bool IsAsteroidOrEnemyNearby(string[][] field, int row, int col, int dirIndex)
     {
-        int minDistance = int.MaxValue;
-        (int x, int y)? nearest = null;
-
-        for (int y = 0; y < FieldSize; y++)
+        for (int i = 1; i <= 4; i++)
         {
-            for (int x = 0; x < FieldSize; x++)
-            {
-                if (field[y][x].StartsWith(entityType))
-                {
-                    int distance = Math.Abs(x - startX) + Math.Abs(y - startY);
-                    if (distance < minDistance)
-                    {
-                        minDistance = distance;
-                        nearest = (x, y);
-                    }
-                }
-            }
+            int newRow = row + Directions[dirIndex].Item1 * i;
+            int newCol = col + Directions[dirIndex].Item2 * i;
+
+            if (newRow < 0 || newCol < 0 || newRow >= FieldSize || newCol >= FieldSize) continue;
+
+            string cell = field[newRow][newCol];
+            if (cell == Enemy) return true; // Враг найден
         }
-
-        return nearest;
-    }
-
-    private bool IsSafeCell(string[][] field, int x, int y, int narrowingIn)
-    {
-        // if (x < narrowingIn || y < narrowingIn || x >= FieldSize - narrowingIn || y >= FieldSize - narrowingIn)
-        //     return false; // Клетка в зоне сужения
-        return IsWithinBounds(x, y) && field[y][x] == "_"; // Свободная клетка
-    }
-
-    private bool IsWithinBounds(int x, int y)
-    {
-        return x >= 0 && y >= 0 && x < FieldSize && y < FieldSize;
-    }
-
-    private string GetMoveTowards(int myX, int myY, char myDirection, int targetX, int targetY)
-    {
-        if (myY > targetY && myDirection != 'N') return "L"; // Нужно вверх
-        if (myY < targetY && myDirection != 'S') return "R"; // Нужно вниз
-        if (myX > targetX && myDirection != 'W') return "L"; // Нужно влево
-        if (myX < targetX && myDirection != 'E') return "R"; // Нужно вправо
-        return "M"; // Если уже направлены правильно, двигаться
-    }
-
-    private (int x, int y) GetNextCell(int x, int y, char direction)
-    {
-        return direction switch
-        {
-            'N' => (x, y - 1),
-            'S' => (x, y + 1),
-            'E' => (x + 1, y),
-            'W' => (x - 1, y),
-            _ => (x, y)
-        };
-    }
-    
-    private bool IsEnemyInFireRange(string[][] field, int myX, int myY, char myDirection, int enemyX, int enemyY)
-    {
-        const int fireRange = 4;
-
-        // Проверяем, находится ли враг в пределах радиуса и на одной оси
-        if (myDirection == 'N' && myX == enemyX && myY > enemyY && (myY - enemyY) <= fireRange)
-        {
-            for (int y = myY - 1; y > enemyY; y--)
-            {
-                if (field[y][myX] != "_" && field[y][myX] != "C") return false; // Препятствие на пути
-            }
-            return true;
-        }
-        if (myDirection == 'S' && myX == enemyX && myY < enemyY && (enemyY - myY) <= fireRange)
-        {
-            for (int y = myY + 1; y < enemyY; y++)
-            {
-                if (field[y][myX] != "_" && field[y][myX] != "C") return false; // Препятствие на пути
-            }
-            return true;
-        }
-        if (myDirection == 'E' && myY == enemyY && myX < enemyX && (enemyX - myX) <= fireRange)
-        {
-            for (int x = myX + 1; x < enemyX; x++)
-            {
-                if (field[myY][x] != "_" && field[myY][x] != "C") return false; // Препятствие на пути
-            }
-            return true;
-        }
-        if (myDirection == 'W' && myY == enemyY && myX > enemyX && (myX - enemyX) <= fireRange)
-        {
-            for (int x = myX - 1; x > enemyX; x--)
-            {
-                if (field[myY][x] != "_" && field[myY][x] != "C") return false; // Препятствие на пути
-            }
-            return true;
-        }
-
         return false;
     }
 
+    // Проверка на нахождение корабля у края поля
+    private bool IsAtEdge(int row, int col, int narrowingIn)
+    {
+        return row <= narrowingIn || col <= narrowingIn || row >= FieldSize - narrowingIn - 1 || col >= FieldSize - narrowingIn - 1;
+    }
+
+    // Движение вдоль периметра
+    private string MovePerimeter(string[][] field, int row, int col, int dirIndex)
+    {
+        var nextRow = row + Directions[dirIndex].Item1;
+        var nextCol = col + Directions[dirIndex].Item2;
+
+        // Если на следующей клетке астероид или край поля, меняем направление
+        if (nextRow < 0 || nextCol < 0 || nextRow >= FieldSize || nextCol >= FieldSize || field[nextRow][nextCol] == Asteroid)
+        {
+            dirIndex = (dirIndex + 1) % Directions.Length; // Поворот по часовой стрелке
+            return "R"; // Повернуть вправо
+        }
+
+        // Двигаемся вперед
+        return "M";
+    }
+
+    // Преобразование направления в индекс
+    private int GetDirectionIndex(string direction)
+    {
+        switch (direction)
+        {
+            case "N": return 0;
+            case "E": return 1;
+            case "S": return 2;
+            case "W": return 3;
+            default: throw new ArgumentException("Invalid direction");
+        }
+    }
 }
