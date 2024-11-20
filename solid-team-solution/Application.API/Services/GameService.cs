@@ -10,34 +10,70 @@ public class GameService : IGameService
     {
         // Найти корабль игрока
         var (myX, myY, myDirection) = FindMyShip(field);
-        
-        if (myX == -1 || myY == -1) throw new Exception("Ship was not found"); // Ошибка, двигаемся вперед
-        
+
+        if (myX == -1 || myY == -1) 
+            throw new Exception("Ship was not found"); // Ошибка, корабль не найден
+
+        // 1. Проверяем, есть ли астероид перед кораблем
         if (IsAsteroidAhead(field, myX, myY, myDirection))
         {
-            return "R"; // Поворот
+            // Ищем безопасное направление
+            var safeDirection = FindSafeDirection(field, myX, myY, myDirection);
+            if (safeDirection != myDirection)
+            {
+                return "R"; // Поворачиваем вправо, чтобы избежать столкновения
+            }
+
+            return "M"; // Если безопасное направление впереди, продолжаем движение
         }
-        
+
+        // 2. Стреляем, если враг в зоне досягаемости
         var enemy = FindNearestEntity(field, myX, myY, "E");
-        
-        ///fire if enemy is reachable
-        if (enemy != null && IsEnemyInFireRange(field ,myX, myY, myDirection, enemy.Value.x, enemy.Value.y))
+        if (enemy != null && IsEnemyInFireRange(field, myX, myY, myDirection, enemy.Value.x, enemy.Value.y))
         {
             return "F"; // Стреляем
         }
-        
+
+        // 3. Двигаемся к ближайшей монете
         var coin = FindNearestEntity(field, myX, myY, "C");
         if (coin != null)
         {
             return GetMoveTowards(myX, myY, myDirection, coin.Value.x, coin.Value.y);
         }
-        
-        // 3. Движение вперед, избегая препятствий
-        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
-        if (IsSafeCell(field, nextX, nextY, narrowingIn)) {return "M";}
 
-        // 4. Если не можем двигаться вперед, поворачиваем
-        return "M"; // Поворот вправо
+        // 4. Движение вперед, если путь безопасен
+        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
+        if (IsSafeCell(field, nextX, nextY, narrowingIn))
+        {
+            return "M"; // Двигаемся вперед
+        }
+
+        // 5. Если не можем двигаться вперед, поворачиваем
+        return "R"; // Поворот вправо
+    }
+
+    private bool IsAsteroidAhead(string[][] field, int myX, int myY, char myDirection)
+    {
+        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
+        return IsWithinBounds(nextX, nextY) && field[nextY][nextX] == "A";
+    }
+
+    private char FindSafeDirection(string[][] field, int myX, int myY, char myDirection)
+    {
+        var directions = new[] { 'N', 'E', 'S', 'W' };
+
+        foreach (var direction in directions)
+        {
+            if (direction == myDirection) continue; // Пропускаем текущее направление
+
+            var (nextX, nextY) = GetNextCell(myX, myY, direction);
+            if (IsWithinBounds(nextX, nextY) && IsSafeCell(field, nextX, nextY, 0))
+            {
+                return direction; // Возвращаем первое безопасное направление
+            }
+        }
+
+        return myDirection; // Если безопасного направления нет, возвращаем текущее
     }
 
     private (int x, int y, char direction) FindMyShip(string[][] field)
@@ -79,39 +115,40 @@ public class GameService : IGameService
 
         return nearest;
     }
-    
-    private bool IsAsteroidAhead(string[][] field, int myX, int myY, char myDirection)
-    {
-        var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
 
-        // Проверяем, есть ли астероид перед кораблем
-        return IsWithinBounds(nextX, nextY) && field[nextY][nextX] == "A";
+    private bool IsSafeCell(string[][] field, int x, int y, int narrowingIn)
+    {
+        if (x < narrowingIn || y < narrowingIn || x >= FieldSize - narrowingIn || y >= FieldSize - narrowingIn)
+            return false; // Клетка в зоне сужения
+        return IsWithinBounds(x, y) && field[y][x] == "_"; // Свободная клетка
     }
 
-    private char GetAlternativeDirection(string[][] field, int myX, int myY, char myDirection)
-    {
-        // Список возможных направлений
-        var directions = new[] { 'N', 'E', 'S', 'W' };
-
-        foreach (var direction in directions)
-        {
-            if (direction == myDirection) continue; // Игнорируем текущее направление
-
-            var (nextX, nextY) = GetNextCell(myX, myY, direction);
-            if (IsWithinBounds(nextX, nextY) && IsSafeCell(field, nextX, nextY, 0))
-            {
-                return direction; // Возвращаем первое безопасное направление
-            }
-        }
-
-        return myDirection; // Если нет альтернативы, оставляем текущее направление
-    }
-    
     private bool IsWithinBounds(int x, int y)
     {
         return x >= 0 && y >= 0 && x < FieldSize && y < FieldSize;
     }
 
+    private string GetMoveTowards(int myX, int myY, char myDirection, int targetX, int targetY)
+    {
+        if (myY > targetY && myDirection != 'N') return "L"; // Нужно вверх
+        if (myY < targetY && myDirection != 'S') return "R"; // Нужно вниз
+        if (myX > targetX && myDirection != 'W') return "L"; // Нужно влево
+        if (myX < targetX && myDirection != 'E') return "R"; // Нужно вправо
+        return "M"; // Если уже направлены правильно, двигаться
+    }
+
+    private (int x, int y) GetNextCell(int x, int y, char direction)
+    {
+        return direction switch
+        {
+            'N' => (x, y - 1),
+            'S' => (x, y + 1),
+            'E' => (x + 1, y),
+            'W' => (x - 1, y),
+            _ => (x, y)
+        };
+    }
+    
     private bool IsEnemyInFireRange(string[][] field, int myX, int myY, char myDirection, int enemyX, int enemyY)
     {
         const int fireRange = 4;
@@ -152,34 +189,5 @@ public class GameService : IGameService
 
         return false;
     }
-    
-    private string GetMoveTowards(int myX, int myY, char myDirection, int targetX, int targetY)
-    {
-        if (myY > targetY && myDirection != 'N') return "L"; // Нужно вверх
-        if (myY < targetY && myDirection != 'S') return "R"; // Нужно вниз
-        if (myX > targetX && myDirection != 'W') return "L"; // Нужно влево
-        if (myX < targetX && myDirection != 'E') return "R"; // Нужно вправо
-        return "M"; // Если уже направлены правильно, двигаться
-    }
 
-    private (int x, int y) GetNextCell(int x, int y, char direction)
-    {
-        return direction switch
-        {
-            'N' => (x, y - 1),
-            'S' => (x, y + 1),
-            'E' => (x + 1, y),
-            'W' => (x - 1, y),
-            _ => (x, y)
-        };
-    }
-
-    private bool IsSafeCell(string[][] field, int x, int y, int narrowingIn)
-    {
-        // Проверка на границы и зону сужения
-        if (x < narrowingIn || y < narrowingIn || x >= FieldSize - narrowingIn || y >= FieldSize - narrowingIn)
-            return false; // Клетка в зоне сужения
-        // Проверка на астероиды и границы
-        return x >= 0 && y >= 0 && x < FieldSize && y < FieldSize && field[y][x] == "_";
-    }
 }
