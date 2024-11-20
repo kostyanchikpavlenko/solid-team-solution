@@ -4,117 +4,122 @@ namespace Application.API.Services;
 
 public class GameService : IGameService
 {
-    private const string Empty = "_";
-    private const string Asteroid = "A";
-    private const string Coin = "C";
-    private const string Player = "P";
-    private const string Enemy = "E";
+    private const int FiringRange = 4;
+    private string _currentDirection = "S"; // Default direction (S = South)
+    private int _fieldSize = 13;
 
-    // Размер поля
-    private const int FieldSize = 13;
-
-    // Направления движения
-    private static readonly (int, int)[] Directions = 
-    {
-        (0, 1),   // Вправо
-        (1, 0),   // Вниз
-        (0, -1),  // Влево
-        (-1, 0)   // Вверх
-    };
-
-    // Метод для получения следующего хода
     public string GetNextMove(string[][] field, int narrowingIn)
     {
-        // Поиск текущего положения игрока
-        (int row, int col, string direction) = FindPlayerPosition(field);
+        (int x, int y) playerPosition = FindPlayer(field);
 
-        // Преобразуем строку направления в индекс направления
-        int dirIndex = GetDirectionIndex(direction);
-        
-        // Проверяем, если narrowingIn меньше 5, создаем буфер от края
+        // Step 1: Fire if an enemy is within range on the same axis
+        if (EnemyInFiringRange(field, playerPosition))
+        {
+            return "F";
+        }
+
+        // Step 2: Adjust position if the field is narrowing
         if (narrowingIn < 5)
         {
-            if (IsAtEdge(row, col, narrowingIn))
+            if (IsNearEdge(playerPosition, narrowingIn))
             {
-                return MovePerimeter(field, row, col, dirIndex);
+                return AdjustToSafeZone(field, playerPosition);
             }
         }
 
-        // Проверяем, есть ли враг в пределах 4 клеток по оси
-        if (IsAsteroidOrEnemyNearby(field, row, col, dirIndex))
-        {
-            return "F"; // Осуществляем выстрел
-        }
-
-        // Продолжаем движение вдоль периметра
-        return MovePerimeter(field, row, col, dirIndex);
+        // Step 3: Move along the perimeter
+        return MoveAlongPerimeter(field, playerPosition);
     }
 
-    // Поиск позиции игрока
-    private (int, int, string) FindPlayerPosition(string[][] field)
+    private (int x, int y) FindPlayer(string[][] field)
     {
-        for (int row = 0; row < field.Length; row++)
+        for (int i = 0; i < field.Length; i++)
         {
-            for (int col = 0; col < field[row].Length; col++)
+            for (int j = 0; j < field[i].Length; j++)
             {
-                if (field[row][col].StartsWith(Player))
+                if (field[i][j].StartsWith("P")) // Find the player
                 {
-                    return (row, col, field[row][col].Substring(1)); // Возвращаем координаты и направление
+                    _currentDirection = field[i][j][1].ToString(); // Update current direction
+                    return (i, j);
                 }
             }
         }
-        throw new Exception("Player not found");
+        throw new Exception("Player not found on the field.");
     }
 
-    // Проверка на астероиды или врагов в пределах 4 клеток по оси
-    private bool IsAsteroidOrEnemyNearby(string[][] field, int row, int col, int dirIndex)
+    private bool EnemyInFiringRange(string[][] field, (int x, int y) playerPosition)
     {
-        for (int i = 1; i <= 4; i++)
+        int x = playerPosition.x;
+        int y = playerPosition.y;
+
+        for (int i = 1; i <= FiringRange; i++)
         {
-            int newRow = row + Directions[dirIndex].Item1 * i;
-            int newCol = col + Directions[dirIndex].Item2 * i;
+            int targetX = x, targetY = y;
 
-            if (newRow < 0 || newCol < 0 || newRow >= FieldSize || newCol >= FieldSize) continue;
+            switch (_currentDirection)
+            {
+                case "N": targetX -= i; break;
+                case "S": targetX += i; break;
+                case "W": targetY -= i; break;
+                case "E": targetY += i; break;
+            }
 
-            string cell = field[newRow][newCol];
-            if (cell == Enemy) return true; // Враг найден
+            if (IsOutOfBounds(targetX, targetY) || field[targetX][targetY] == "A") break;
+            if (field[targetX][targetY].StartsWith("E")) return true; // Enemy found
         }
+
         return false;
     }
 
-    // Проверка на нахождение корабля у края поля
-    private bool IsAtEdge(int row, int col, int narrowingIn)
+    private bool IsNearEdge((int x, int y) position, int narrowingIn)
     {
-        return row <= narrowingIn || col <= narrowingIn || row >= FieldSize - narrowingIn - 1 || col >= FieldSize - narrowingIn - 1;
+        int buffer = narrowingIn + 1;
+        return position.x <= buffer || position.y <= buffer || position.x >= _fieldSize - buffer || position.y >= _fieldSize - buffer;
     }
 
-    // Движение вдоль периметра
-    private string MovePerimeter(string[][] field, int row, int col, int dirIndex)
+    private string AdjustToSafeZone(string[][] field, (int x, int y) position)
     {
-        var nextRow = row + Directions[dirIndex].Item1;
-        var nextCol = col + Directions[dirIndex].Item2;
-
-        // Если на следующей клетке астероид или край поля, меняем направление
-        if (nextRow < 0 || nextCol < 0 || nextRow >= FieldSize || nextCol >= FieldSize || field[nextRow][nextCol] == Asteroid)
+        List<(int x, int y, string move)> possibleMoves = new List<(int x, int y, string move)>
         {
-            dirIndex = (dirIndex + 1) % Directions.Length; // Поворот по часовой стрелке
-            return "R"; // Повернуть вправо
+            (position.x - 1, position.y, "M"), // Move North
+            (position.x + 1, position.y, "M"), // Move South
+            (position.x, position.y - 1, "L"), // Rotate Left
+            (position.x, position.y + 1, "R")  // Rotate Right
+        };
+
+        foreach (var move in possibleMoves)
+        {
+            if (!IsOutOfBounds(move.x, move.y) && field[move.x][move.y] == "_")
+            {
+                return move.move;
+            }
         }
 
-        // Двигаемся вперед
-        return "M";
+        return "R"; // Rotate right as fallback
     }
 
-    // Преобразование направления в индекс
-    private int GetDirectionIndex(string direction)
+    private string MoveAlongPerimeter(string[][] field, (int x, int y) position)
     {
-        switch (direction)
+        (int targetX, int targetY) nextPosition = position;
+        switch (_currentDirection)
         {
-            case "N": return 0;
-            case "E": return 1;
-            case "S": return 2;
-            case "W": return 3;
-            default: throw new ArgumentException("Invalid direction");
+            case "N": nextPosition.targetX -= 1; break;
+            case "S": nextPosition.targetX += 1; break;
+            case "W": nextPosition.targetY -= 1; break;
+            case "E": nextPosition.targetY += 1; break;
         }
+
+        if (!IsOutOfBounds(nextPosition.targetX, nextPosition.targetY) && field[nextPosition.targetX][nextPosition.targetY] == "_")
+        {
+            return "M"; // Move forward if cell is empty
+        }
+
+        // Rotate to avoid obstacles
+        return "R";
+    }
+
+    private bool IsOutOfBounds(int x, int y)
+    {
+        return x < 0 || y < 0 || x >= _fieldSize || y >= _fieldSize;
     }
 }
