@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Application.API.Interfaces;
+using Application.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddTransient<IGameService, GameService>();
 
 var app = builder.Build();
 
@@ -18,25 +21,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/move", (MoveRequest request) =>
+app.MapPost("/move", (MoveRequest request, HttpResponse response, IGameService gameService) =>
 {
     // Validate the input
-    if (request == null || request.Field == null || request.Field.Count == 0)
+    if (request == null || request.Field == null || request.Field.Length == 0)
     {
         return Results.BadRequest(new { Message = "Invalid request data." });
     }
-
-    // Process the request (example logic)
-    Console.WriteLine($"Game ID: {request.GameId}");
-    Console.WriteLine($"Narrowing In: {request.NarrowingIn}");
-    Console.WriteLine("Field:");
-    foreach (var row in request.Field)
-    {
-        Console.WriteLine(string.Join(", ", row));
-    }
-
-    // Return success response
-    return Results.Ok(new { Message = "Move processed successfully." });
+    
+    var nextStep = gameService.GetNextMove(request.Field, request.NarrowingIn);
+    response.ContentType = "application/json";
+    return Results.Ok(new { move = nextStep });
 });
 
 ///Test endpoint
@@ -51,7 +46,7 @@ app.Run();
 
 public class MoveRequest
 {
-    public List<List<string>> Field { get; set; } = new();
+    public string[][] Field { get; set; } = new string[][]{};
     public int NarrowingIn { get; set; }
     public int GameId { get; set; }
 }
