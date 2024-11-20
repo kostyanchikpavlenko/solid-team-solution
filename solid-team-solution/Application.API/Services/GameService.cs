@@ -34,12 +34,12 @@ public class GameService : IGameService
             return "F"; // Стреляем
         }
 
-        // 3. Двигаемся к ближайшей монете
-        var coin = FindNearestEntity(field, myX, myY, "C");
-        if (coin != null)
-        {
-            return GetMoveTowards(myX, myY, myDirection, coin.Value.x, coin.Value.y);
-        }
+        // // 3. Двигаемся к ближайшей монете
+        // var coin = FindNearestEntity(field, myX, myY, "C");
+        // if (coin != null)
+        // {
+        //     return GetMoveTowards(myX, myY, myDirection, coin.Value.x, coin.Value.y);
+        // }
 
         // 4. Движение вперед, если путь безопасен
         var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
