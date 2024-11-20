@@ -37,7 +37,7 @@ public class GameService : IGameService
         if (IsSafeCell(field, nextX, nextY, narrowingIn)) {return "M";}
 
         // 4. Если не можем двигаться вперед, поворачиваем
-        return "R"; // Поворот вправо
+        return "M"; // Поворот вправо
     }
 
     private (int x, int y, char direction) FindMyShip(string[][] field)
