@@ -107,45 +107,98 @@ public class GameService : IGameService
     }
 
     private string MoveAlongCircularPerimeter(string[][] field, (int x, int y) position, int narrowingIn)
+{
+    int minBoundary = 1; // Буфер 1 клетка от края
+    int maxBoundary = _fieldSize - 2; // Буфер 1 клетка от другой стороны
+
+    // Если narrowingIn меньше 5, сужаем поле
+    if (narrowingIn < 5)
     {
-        int minBoundary = 1; // Буфер 1 клетка от края
-        int maxBoundary = _fieldSize - 2; // Буфер 1 клетка от другой стороны
-    
-        // Если narrowingIn меньше 5, сужаем поле
-        if (narrowingIn < 5)
+        minBoundary = narrowingIn + 1;
+        maxBoundary = _fieldSize - narrowingIn - 2;
+
+        // Логика экстренного отхода от краёв с учётом астероидов
+        if (position.x <= minBoundary)
         {
-            minBoundary = narrowingIn + 1; 
-            maxBoundary = _fieldSize - narrowingIn - 2;
+            if (IsSafeMove(field, position.x + 1, position.y)) return "M"; // Двигаться вниз
+            return RotateToSafeDirection(field, position, new[] { "E", "W" }); // Вправо или влево
         }
-
-        // Движение по кругу с учётом направлений
-        switch (_currentDirection)
+        else if (position.x >= maxBoundary)
         {
-            case "N": // Движение на север
-                if ( position.x > minBoundary && field[position.x - 1][position.y] != "A" && (field[position.x - 1][position.y] == "_" || field[position.x - 1][position.y] == "C"))
-                    return "M"; // Двигаться вперёд
-                return "R"; // Поворот вправо
-
-            case "S": // Движение на юг
-                if (position.x < maxBoundary && field[position.x + 1][position.y] != "A" && (field[position.x + 1][position.y] == "_" || field[position.x + 1][position.y] == "C"))
-                    return "M"; 
-                return "R";
-
-            case "W": // Движение на запад
-                if (position.y > minBoundary && field[position.x][position.y - 1] != "A"  && (field[position.x][position.y - 1] == "_" || field[position.x][position.y - 1] == "C"))
-                    return "M";
-                return "R";
-
-            case "E": // Движение на восток
-                if (position.y < maxBoundary && field[position.x][position.y + 1] != "A" && (field[position.x][position.y + 1] == "_" || field[position.x][position.y + 1] == "C"))
-                    return "M";
-                return "R";
+            if (IsSafeMove(field, position.x - 1, position.y)) return "M"; // Двигаться вверх
+            return RotateToSafeDirection(field, position, new[] { "W", "E" }); // Влево или вправо
         }
-
-        // По умолчанию поворот вправо, если движение невозможно
-        return "R";
+        else if (position.y <= minBoundary)
+        {
+            if (IsSafeMove(field, position.x, position.y + 1)) return "M"; // Двигаться вправо
+            return RotateToSafeDirection(field, position, new[] { "N", "S" }); // Вверх или вниз
+        }
+        else if (position.y >= maxBoundary)
+        {
+            if (IsSafeMove(field, position.x, position.y - 1)) return "M"; // Двигаться влево
+            return RotateToSafeDirection(field, position, new[] { "S", "N" }); // Вниз или вверх
+        }
     }
 
+    // Обычное движение по кругу с учётом астероидов
+    switch (_currentDirection)
+    {
+        case "N": // Движение на север
+            if (position.x > minBoundary && IsSafeMove(field, position.x - 1, position.y))
+                return "M";
+            return RotateToSafeDirection(field, position, new[] { "E", "W" });
+
+        case "S": // Движение на юг
+            if (position.x < maxBoundary && IsSafeMove(field, position.x + 1, position.y))
+                return "M";
+            return RotateToSafeDirection(field, position, new[] { "W", "E" });
+
+        case "W": // Движение на запад
+            if (position.y > minBoundary && IsSafeMove(field, position.x, position.y - 1))
+                return "M";
+            return RotateToSafeDirection(field, position, new[] { "N", "S" });
+
+        case "E": // Движение на восток
+            if (position.y < maxBoundary && IsSafeMove(field, position.x, position.y + 1))
+                return "M";
+            return RotateToSafeDirection(field, position, new[] { "S", "N" });
+    }
+
+    return "R"; // По умолчанию fallback
+}
+
+// Проверка безопасного направления для поворота
+private string RotateToSafeDirection(string[][] field, (int x, int y) position, string[] directions)
+{
+    foreach (var direction in directions)
+    {
+        int targetX = position.x;
+        int targetY = position.y;
+
+        switch (direction)
+        {
+            case "N": targetX--; break;
+            case "S": targetX++; break;
+            case "W": targetY--; break;
+            case "E": targetY++; break;
+        }
+
+        if (IsSafeMove(field, targetX, targetY))
+        {
+            _currentDirection = direction;
+            return "R"; // Поворот направо
+        }
+    }
+
+    return "L"; // fallback поворот в другую сторону
+}
+
+// Проверка, является ли клетка безопасной для движения
+private bool IsSafeMove(string[][] field, int x, int y)
+{
+    return !IsOutOfBounds(x, y) && field[x][y] == "_";
+}
+    
     private bool IsOutOfBounds(int x, int y)
     {
         return x < 0 || y < 0 || x >= _fieldSize || y >= _fieldSize;
