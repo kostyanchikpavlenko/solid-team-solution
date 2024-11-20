@@ -1,6 +1,9 @@
-﻿using Application.API.Interfaces;
+﻿using System;
+using System.Collections.Generic;
+using Application.API.Interfaces;
 
 namespace Application.API.Services;
+
 
 public class GameService : IGameService
 {
@@ -18,17 +21,14 @@ public class GameService : IGameService
             return "F";
         }
 
-        // Step 2: Adjust position if the field is narrowing
-        if (narrowingIn < 5)
+        // Step 2: Avoid being too close to narrowing edges
+        if (IsNearEdge(playerPosition, narrowingIn))
         {
-            if (IsNearEdge(playerPosition, narrowingIn))
-            {
-                return AdjustToSafeZone(field, playerPosition);
-            }
+            return AdjustToSafeZone(field, playerPosition, narrowingIn);
         }
 
-        // Step 3: Move along the perimeter
-        return MoveAlongPerimeter(field, playerPosition);
+        // Step 3: Move in a circular path around the perimeter
+        return MoveAlongCircularPerimeter(field, playerPosition, narrowingIn);
     }
 
     private (int x, int y) FindPlayer(string[][] field)
@@ -74,10 +74,10 @@ public class GameService : IGameService
     private bool IsNearEdge((int x, int y) position, int narrowingIn)
     {
         int buffer = narrowingIn + 1;
-        return position.x <= buffer || position.y <= buffer || position.x >= _fieldSize - buffer || position.y >= _fieldSize - buffer;
+        return position.x <= buffer || position.y <= buffer || position.x >= _fieldSize - buffer - 1 || position.y >= _fieldSize - buffer - 1;
     }
 
-    private string AdjustToSafeZone(string[][] field, (int x, int y) position)
+    private string AdjustToSafeZone(string[][] field, (int x, int y) position, int narrowingIn)
     {
         List<(int x, int y, string move)> possibleMoves = new List<(int x, int y, string move)>
         {
@@ -98,24 +98,32 @@ public class GameService : IGameService
         return "R"; // Rotate right as fallback
     }
 
-    private string MoveAlongPerimeter(string[][] field, (int x, int y) position)
+    private string MoveAlongCircularPerimeter(string[][] field, (int x, int y) position, int narrowingIn)
     {
-        (int targetX, int targetY) nextPosition = position;
+        int minBoundary = narrowingIn + 1; // Maintain 1-cell buffer from shrinking edges
+        int maxBoundary = _fieldSize - narrowingIn - 2;
+
+        // Determine the next move based on current direction and position
         switch (_currentDirection)
         {
-            case "N": nextPosition.targetX -= 1; break;
-            case "S": nextPosition.targetX += 1; break;
-            case "W": nextPosition.targetY -= 1; break;
-            case "E": nextPosition.targetY += 1; break;
+            case "N": // Moving North
+                if (position.x > minBoundary && field[position.x - 1][position.y] == "_") return "M";
+                return "R"; // Rotate right if can't move forward
+
+            case "S": // Moving South
+                if (position.x < maxBoundary && field[position.x + 1][position.y] == "_") return "M";
+                return "R";
+
+            case "W": // Moving West
+                if (position.y > minBoundary && field[position.x][position.y - 1] == "_") return "M";
+                return "R";
+                
+            case "E": // Moving East
+                if (position.y < maxBoundary && field[position.x][position.y + 1] == "_") return "M";
+                return "R";
         }
 
-        if (!IsOutOfBounds(nextPosition.targetX, nextPosition.targetY) && field[nextPosition.targetX][nextPosition.targetY] == "_")
-        {
-            return "M"; // Move forward if cell is empty
-        }
-
-        // Rotate to avoid obstacles
-        return "R";
+        return "R"; // Default to rotating right if no other move is possible
     }
 
     private bool IsOutOfBounds(int x, int y)
