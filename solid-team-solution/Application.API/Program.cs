@@ -18,6 +18,27 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.MapPost("/move", (MoveRequest request) =>
+{
+    // Validate the input
+    if (request == null || request.Field == null || request.Field.Count == 0)
+    {
+        return Results.BadRequest(new { Message = "Invalid request data." });
+    }
+
+    // Process the request (example logic)
+    Console.WriteLine($"Game ID: {request.GameId}");
+    Console.WriteLine($"Narrowing In: {request.NarrowingIn}");
+    Console.WriteLine("Field:");
+    foreach (var row in request.Field)
+    {
+        Console.WriteLine(string.Join(", ", row));
+    }
+
+    // Return success response
+    return Results.Ok(new { Message = "Move processed successfully." });
+});
+
 ///Test endpoint
 app.MapGet("/healthz", (HttpResponse response) =>
 {
@@ -26,3 +47,13 @@ app.MapGet("/healthz", (HttpResponse response) =>
 });
 
 app.Run();
+
+
+public class MoveRequest
+{
+    public List<List<string>> Field { get; set; } = new();
+    public int NarrowingIn { get; set; }
+    public int GameId { get; set; }
+}
+
+
