@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿
 using Application.API.Interfaces;
 
 namespace Application.API.Services;
@@ -20,12 +19,20 @@ public class GameService : IGameService
         {
             return "F";
         }
-
-        // Step 2: Avoid being too close to narrowing edges
-        if (IsNearEdge(playerPosition, narrowingIn))
+     
+        if (narrowingIn < 5)
         {
-            return AdjustToSafeZone(field, playerPosition, narrowingIn);
+            if (IsNearEdge(playerPosition))
+            {
+                return AdjustToSafeZone(field, playerPosition);
+            }
         }
+        
+        // Step 2: Avoid being too close to narrowing edges
+        // if (IsNearEdge(playerPosition))
+        // {
+        //     return AdjustToSafeZone(field, playerPosition, narrowingIn);
+        // }
 
         // Step 3: Move in a circular path around the perimeter
         return MoveAlongCircularPerimeter(field, playerPosition, narrowingIn);
@@ -71,13 +78,14 @@ public class GameService : IGameService
         return false;
     }
 
-    private bool IsNearEdge((int x, int y) position, int narrowingIn)
+    private bool IsNearEdge((int x, int y) position)
     {
-        int buffer = narrowingIn + 1;
-        return position.x <= buffer || position.y <= buffer || position.x >= _fieldSize - buffer - 1 || position.y >= _fieldSize - buffer - 1;
+        int buffer = 1; // Минимальный буфер 1 клетка от границы
+        return position.x <= buffer || position.y <= buffer || 
+               position.x >= _fieldSize - buffer - 1 || position.y >= _fieldSize - buffer - 1;
     }
 
-    private string AdjustToSafeZone(string[][] field, (int x, int y) position, int narrowingIn)
+    private string AdjustToSafeZone(string[][] field, (int x, int y) position)
     {
         List<(int x, int y, string move)> possibleMoves = new List<(int x, int y, string move)>
         {
@@ -100,30 +108,42 @@ public class GameService : IGameService
 
     private string MoveAlongCircularPerimeter(string[][] field, (int x, int y) position, int narrowingIn)
     {
-        int minBoundary = narrowingIn + 1; // Maintain 1-cell buffer from shrinking edges
-        int maxBoundary = _fieldSize - narrowingIn - 2;
+        int minBoundary = 1; // Буфер 1 клетка от края
+        int maxBoundary = _fieldSize - 2; // Буфер 1 клетка от другой стороны
+    
+        // Если narrowingIn меньше 5, сужаем поле
+        if (narrowingIn < 5)
+        {
+            minBoundary = narrowingIn + 1; 
+            maxBoundary = _fieldSize - narrowingIn - 2;
+        }
 
-        // Determine the next move based on current direction and position
+        // Движение по кругу с учётом направлений
         switch (_currentDirection)
         {
-            case "N": // Moving North
-                if (position.x > minBoundary && field[position.x - 1][position.y] == "_") return "M";
-                return "R"; // Rotate right if can't move forward
+            case "N": // Движение на север
+                if (position.x > minBoundary && field[position.x - 1][position.y] == "_")
+                    return "M"; // Двигаться вперёд
+                return "R"; // Поворот вправо
 
-            case "S": // Moving South
-                if (position.x < maxBoundary && field[position.x + 1][position.y] == "_") return "M";
+            case "S": // Движение на юг
+                if (position.x < maxBoundary && field[position.x + 1][position.y] == "_")
+                    return "M"; 
                 return "R";
 
-            case "W": // Moving West
-                if (position.y > minBoundary && field[position.x][position.y - 1] == "_") return "M";
+            case "W": // Движение на запад
+                if (position.y > minBoundary && field[position.x][position.y - 1] == "_")
+                    return "M";
                 return "R";
-                
-            case "E": // Moving East
-                if (position.y < maxBoundary && field[position.x][position.y + 1] == "_") return "M";
+
+            case "E": // Движение на восток
+                if (position.y < maxBoundary && field[position.x][position.y + 1] == "_")
+                    return "M";
                 return "R";
         }
 
-        return "R"; // Default to rotating right if no other move is possible
+        // По умолчанию поворот вправо, если движение невозможно
+        return "R";
     }
 
     private bool IsOutOfBounds(int x, int y)
