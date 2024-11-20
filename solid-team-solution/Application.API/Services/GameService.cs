@@ -43,13 +43,13 @@ public class GameService : IGameService
 
         // 4. Движение вперед, если путь безопасен
         var (nextX, nextY) = GetNextCell(myX, myY, myDirection);
-        if (IsSafeCell(field, nextX, nextY, narrowingIn))
+        if (IsSafeCell(field, nextX, nextY, narrowingIn) && narrowingIn < 5)
         {
             return "M"; // Двигаемся вперед
         }
 
         // 5. Если не можем двигаться вперед, поворачиваем
-        return "R"; // Поворот вправо
+        return "F"; 
     }
 
     private bool IsAsteroidAhead(string[][] field, int myX, int myY, char myDirection)
@@ -118,8 +118,8 @@ public class GameService : IGameService
 
     private bool IsSafeCell(string[][] field, int x, int y, int narrowingIn)
     {
-        if (x < narrowingIn || y < narrowingIn || x >= FieldSize - narrowingIn || y >= FieldSize - narrowingIn)
-            return false; // Клетка в зоне сужения
+        // if (x < narrowingIn || y < narrowingIn || x >= FieldSize - narrowingIn || y >= FieldSize - narrowingIn)
+        //     return false; // Клетка в зоне сужения
         return IsWithinBounds(x, y) && field[y][x] == "_"; // Свободная клетка
     }
 
