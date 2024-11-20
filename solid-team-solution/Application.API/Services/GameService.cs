@@ -122,22 +122,22 @@ public class GameService : IGameService
         switch (_currentDirection)
         {
             case "N": // Движение на север
-                if (position.x > minBoundary && (field[position.x - 1][position.y] == "_" || field[position.x - 1][position.y] == "C"))
+                if ( position.x > minBoundary && field[position.x - 1][position.y] != "A" && (field[position.x - 1][position.y] == "_" || field[position.x - 1][position.y] == "C"))
                     return "M"; // Двигаться вперёд
                 return "R"; // Поворот вправо
 
             case "S": // Движение на юг
-                if (position.x < maxBoundary && (field[position.x + 1][position.y] == "_" || field[position.x + 1][position.y] == "C"))
+                if (position.x < maxBoundary && field[position.x + 1][position.y] != "A" && (field[position.x + 1][position.y] == "_" || field[position.x + 1][position.y] == "C"))
                     return "M"; 
                 return "R";
 
             case "W": // Движение на запад
-                if (position.y > minBoundary && (field[position.x][position.y - 1] == "_" || field[position.x][position.y - 1] == "C"))
+                if (position.y > minBoundary && field[position.x][position.y - 1] != "A"  && (field[position.x][position.y - 1] == "_" || field[position.x][position.y - 1] == "C"))
                     return "M";
                 return "R";
 
             case "E": // Движение на восток
-                if (position.y < maxBoundary && (field[position.x][position.y + 1] == "_" || field[position.x][position.y + 1] == "C"))
+                if (position.y < maxBoundary && field[position.x][position.y + 1] != "A" && (field[position.x][position.y + 1] == "_" || field[position.x][position.y + 1] == "C"))
                     return "M";
                 return "R";
         }
